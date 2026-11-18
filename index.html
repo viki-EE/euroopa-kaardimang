@@ -1,0 +1,635 @@
+<!doctype html>
+<html lang="et">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Euroopa kaardi õppemäng eesti keeles: riigid, pealinnad ja numbritest.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#0a5fc4">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Euroopa kaardimäng</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: sticky map on the left, activity panel on the right; stacked on phones. Land is coloured by region. */
+:root{
+  --bg:#eef2f5; --panel:#ffffff; --fg:#13202c; --muted:#58697a; --line:#c5cfd8;
+  --sea:#dbe8f0; --grid:#c3d4df; --accent:#0a5fc4; --on-accent:#ffffff;
+  --ok:#238a52; --bad:#c8372d; --other:#cbd3d9; --plain:#e8ecef; --halo:#ffffff; --edge:#6f8191;
+  --rN:#8dbad3; --rW:#a7d08f; --rC:#ebca7f; --rS:#eea98c; --rB:#bfa9dd; --rE:#8bd0c3;
+  --ff-h:'Space Grotesk','Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --ff-b:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f161c; --panel:#18222b; --fg:#e6edf3; --muted:#9aabba; --line:#2d3b48;
+    --sea:#0e1b26; --grid:#182937; --accent:#5aa9ff; --on-accent:#06121f;
+    --ok:#35a96a; --bad:#e5594d; --other:#26323d; --plain:#2c3a47; --halo:#0f161c; --edge:#0a1117;
+    --rN:#35607a; --rW:#4c7a3f; --rC:#8f7633; --rS:#8f5a45; --rB:#6c5a8c; --rE:#3b7a72;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f161c; --panel:#18222b; --fg:#e6edf3; --muted:#9aabba; --line:#2d3b48;
+  --sea:#0e1b26; --grid:#182937; --accent:#5aa9ff; --on-accent:#06121f;
+  --ok:#35a96a; --bad:#e5594d; --other:#26323d; --plain:#2c3a47; --halo:#0f161c; --edge:#0a1117;
+  --rN:#35607a; --rW:#4c7a3f; --rC:#8f7633; --rS:#8f5a45; --rB:#6c5a8c; --rE:#3b7a72;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:auto}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--ff-b);margin:0;
+  padding-block:16px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.page{max-width:1180px;margin:0 auto}
+h1{font:700 26px/1.15 var(--ff-h);margin:0;letter-spacing:-.01em;text-wrap:balance}
+.sub{margin:4px 0 0;color:var(--muted)}
+.tabs{display:flex;gap:6px;margin:14px 0 14px;flex-wrap:wrap}
+.tab{font:600 14px var(--ff-b);padding:9px 14px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer}
+.tab[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+button{font-family:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.layout{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(300px,1fr);gap:16px;align-items:start}
+.mapcol{position:sticky;top:8px;z-index:5;min-width:0}
+.mapwrap{position:relative;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--sea)}
+#map{display:block;width:100%;height:auto;aspect-ratio:868/760;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+#map:active{cursor:grabbing}
+.zoom{position:absolute;top:8px;right:8px;display:flex;flex-direction:column;gap:4px}
+.zoom button{width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font:600 18px/1 var(--ff-b);cursor:pointer}
+.bar{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font:500 13px var(--ff-b);cursor:pointer}
+.chip[aria-pressed="false"]{opacity:.5}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none;border:1px solid var(--edge)}
+.dot.reg-N{background:var(--rN)}.dot.reg-W{background:var(--rW)}.dot.reg-C{background:var(--rC)}
+.dot.reg-S{background:var(--rS)}.dot.reg-B{background:var(--rB)}.dot.reg-E{background:var(--rE)}
+
+/* map elements */
+.o path{fill:var(--other);stroke:var(--edge);stroke-width:.6;vector-effect:non-scaling-stroke}
+.c.reg-N{--f:var(--rN)}.c.reg-W{--f:var(--rW)}.c.reg-C{--f:var(--rC)}
+.c.reg-S{--f:var(--rS)}.c.reg-B{--f:var(--rB)}.c.reg-E{--f:var(--rE)}
+.plain .c:not(.dim):not(.ok):not(.bad){--f:var(--plain)}
+.c.dim{--f:var(--other)}
+.c.ok{--f:var(--ok)}.c.bad{--f:var(--bad)}
+.c path,.c.mk{fill:var(--f);stroke:var(--edge);stroke-width:.7;vector-effect:non-scaling-stroke;cursor:pointer}
+.c.sel path,.c.sel.mk{stroke:var(--accent);stroke-width:2.6}
+.c.dim{cursor:default}
+.lab text{font:600 11px var(--ff-b);fill:var(--fg);paint-order:stroke;stroke:var(--halo);stroke-width:3px;stroke-linejoin:round;text-anchor:middle;pointer-events:none}
+.lab{pointer-events:none}
+.bd{cursor:pointer}
+.bd circle{fill:var(--accent);stroke:var(--halo);stroke-width:2px}
+.bd text{font:700 12px var(--ff-b);fill:var(--on-accent);text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.bd.on circle{stroke:var(--fg);stroke-width:2.5px}
+.grid line{stroke:var(--grid);stroke-width:.6;vector-effect:non-scaling-stroke}
+
+/* panel */
+#panel{display:flex;flex-direction:column;gap:12px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+.eyebrow{font:600 12px var(--ff-b);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.qname{font:700 30px/1.15 var(--ff-h);margin:4px 0 6px;text-wrap:balance}
+.fb{min-height:24px;font-weight:500}
+.fb.ok{color:var(--ok)}.fb.bad{color:var(--bad)}
+.muted{color:var(--muted)}.small{font-size:13px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.row.between{justify-content:space-between}
+.btn{padding:9px 14px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font:600 14px var(--ff-b);cursor:pointer}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn[hidden]{display:none}
+input[type=text],input[type=search],select{width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg);font:15px var(--ff-b)}
+select{width:auto}
+.inl{display:flex;gap:8px;margin-top:6px}
+.chk{display:flex;align-items:center;gap:8px;font-size:14px}
+.stats{display:flex;gap:18px;flex-wrap:wrap}
+.stat b{display:block;font:700 22px var(--ff-h);font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted)}
+.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.li{display:grid;grid-template-columns:12px minmax(0,1fr) minmax(0,1fr);gap:10px;align-items:center;width:100%;text-align:left;padding:9px 12px;border:0;border-bottom:1px solid var(--line);background:transparent;color:var(--fg);font:14px var(--ff-b);cursor:pointer}
+.li:last-child{border-bottom:0}
+.li.on{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.li .lc{color:var(--muted)}
+.li .lc.blur{filter:blur(6px);user-select:none}
+.info h2{font:700 24px/1.2 var(--ff-h);margin:0 0 4px}
+.info .cap{font-size:20px}
+.sheet{display:flex;flex-direction:column;gap:8px}
+.srow{display:grid;grid-template-columns:34px minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.srow.ok{border-color:var(--ok)}.srow.bad{border-color:var(--bad)}
+.num{width:30px;height:30px;border-radius:50%;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font:700 13px var(--ff-b);cursor:pointer}
+.ans{grid-column:2 / 4;font-size:13px;color:var(--muted)}
+.ans b{color:var(--fg)}
+.mark{font-weight:700}
+.mark.ok{color:var(--ok)}.mark.bad{color:var(--bad)}.mark.near{color:#b7791f}
+@media (max-width:900px){
+  .layout{grid-template-columns:minmax(0,1fr)}
+  .mapcol{top:0;background:var(--bg);padding-bottom:6px}
+  .list{max-height:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>Euroopa kaardimäng</h1>
+    <p class="sub">Riigid ja pealinnad eesti keeles. Õpi, näita kaardil, tee numbritest.</p>
+    <div class="tabs" role="tablist" aria-label="Režiim">
+      <button class="tab" role="tab" data-mode="learn" aria-selected="true">Õpi</button>
+      <button class="tab" role="tab" data-mode="point" aria-selected="false">Näita kaardil</button>
+      <button class="tab" role="tab" data-mode="test" aria-selected="false">Numbritest</button>
+    </div>
+  </header>
+  <div class="layout">
+    <section class="mapcol" aria-label="Kaart">
+      <div class="mapwrap">
+        <svg id="map" viewBox="0 0 868 760" role="img" aria-label="Euroopa kaart"></svg>
+        <div class="zoom">
+          <button id="zIn" aria-label="Suurenda">+</button>
+          <button id="zOut" aria-label="Vähenda">−</button>
+          <button id="zReset" aria-label="Terve kaart" title="Terve kaart">⟲</button>
+        </div>
+      </div>
+      <div class="bar" id="bar"></div>
+    </section>
+    <aside id="panel"></aside>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+var $=function(s){return document.querySelector(s)};
+var NS='http://www.w3.org/2000/svg';
+var SX=12.4,SY=20,W=868,H=760,MINW=58;
+function X(lon){return (lon+25)*SX}
+function Y(lat){return (72-lat)*SY}
+function poly(s){return s.trim().split(/\s+/).map(function(p){var a=p.split(',');return [+a[0],+a[1]]})}
+
+var REG={N:'Põhja-Euroopa',W:'Lääne-Euroopa',C:'Kesk-Euroopa',S:'Lõuna-Euroopa',B:'Balkan',E:'Ida-Euroopa'};
+var REGSHORT={N:'Põhja',W:'Lääne',C:'Kesk',S:'Lõuna',B:'Balkan',E:'Ida'};
+var RK=['N','W','C','S','B','E'];
+
+var DATA=[];
+function K(id,n,c,r,a,p,o){o=o||{};DATA.push({id:id,n:n,c:c,r:r,a:a,p:(p||[]).map(poly),mk:!!o.mk,alt:o.alt||[],calt:o.calt||[],s:o.s||n,micro:!p||!p.length})}
+
+K('IS','Island','Reykjavík','N',[-19,64.9],['-24,65.5 -22,66.4 -18,66.2 -14.5,66.3 -13.6,65.1 -15,64.3 -18,63.4 -21,63.8 -22.7,64 -22,64.9']);
+K('IE','Iirimaa','Dublin','N',[-8,53.2],['-10.4,52 -9,51.5 -6.3,52.2 -6,53.3 -6.2,54.1 -7,54.1 -8,54.5 -7.3,55.2 -8.3,55.2 -8.8,54.6 -10,54.2 -9.9,53.4 -10.4,52.6'],{});
+K('GB','Ühendkuningriik','London','W',[-1.5,52.8],[
+ '-5.7,50.1 -3,50.7 1.4,51.1 1.7,52.6 0.2,53.5 -0.2,54.1 -1.5,55 -2,55.8 -3,56 -2.1,57 -1.8,57.6 -3.5,57.7 -4,57.5 -3.2,58.6 -5,58.6 -5.8,57.5 -5.6,56.5 -6,55.9 -5.1,55 -3,54.9 -3.1,54 -3,53.4 -4.5,53.3 -4.2,52.6 -5.2,51.9 -3.2,51.4 -4.5,51.1',
+ '-6.2,54.1 -5.5,54.5 -5.9,55.2 -7.3,55.2 -8,54.5 -7,54.1'],{alt:['Suurbritannia','Inglismaa','Briti']});
+K('PT','Portugal','Lissabon','S',[-8,39.7],['-8.8,42.1 -6.6,42 -6.2,41.6 -6.9,41 -7,40.3 -6.9,39.6 -7.3,39 -7,38 -7.4,37.2 -8.9,37 -8.9,38.5 -9.5,38.7 -8.8,40.2 -8.9,41.5'],{calt:['Lisboa']});
+K('ES','Hispaania','Madrid','S',[-3.5,40.2],[
+ '-9.3,43 -8,43.8 -1.8,43.4 0.7,42.8 1.7,42.5 3.2,42.4 3.2,41.9 0.9,41 0.2,40 -0.3,39.3 -0.2,38.7 -0.7,37.6 -2.2,36.7 -4.4,36.7 -5.4,36.1 -6.3,36.6 -7.4,37.2 -7,38 -7.3,39 -6.9,39.6 -7,40.3 -6.9,41 -6.2,41.6 -6.6,42 -8.8,42.1 -8.9,42.4',
+ '2.4,39.6 3.4,39.9 3.1,39.3']);
+K('AD','Andorra','Andorra la Vella','S',[1.52,42.54],[],{mk:true,calt:['Andorra']});
+K('FR','Prantsusmaa','Pariis','W',[2.5,46.8],[
+ '-4.8,48.4 -1.8,48.6 -1.5,49.7 1.6,50.9 2.55,51.1 2.9,50.7 4.2,49.97 4.8,49.95 5.5,49.5 5.8,49.55 6.4,49.5 8.2,49 7.6,47.6 6.9,47.4 6,46.3 7,45.9 7.6,44.2 6.9,43.9 7.5,43.7 4.5,43.4 3.1,43.1 3.2,42.4 1.7,42.5 0.7,42.8 -1.8,43.4 -1.2,44.7 -1.2,46 -2.2,47.2 -4.5,47.8',
+ '8.6,42.4 9.4,43 9.5,41.9 9.2,41.4 8.7,41.6'],{calt:['Paris']});
+K('MC','Monaco','Monaco','W',[7.42,43.74],[],{mk:true});
+K('BE','Belgia','Brüssel','W',[4.6,50.6],['2.55,51.1 3.4,51.35 4.25,51.4 5.05,51.5 5.9,51.05 6.2,50.8 6.1,50.1 5.8,49.55 5.5,49.5 4.8,49.95 4.2,49.97 2.9,50.7'],{calt:['Bruxelles','Brussel']});
+K('NL','Madalmaad','Amsterdam','W',[5.4,52.3],['3.4,51.35 4.25,51.4 5.05,51.5 5.9,51.05 5.95,51.2 6,51.8 7.1,52.4 7.2,53.2 7,53.5 5.5,53.45 4.8,53 4.5,52.4 4,52'],{alt:['Holland','Hollandi']});
+K('LU','Luksemburg','Luxembourg','W',[6.13,49.75],['5.75,49.55 6.4,49.5 6.5,49.85 6.1,50.15 5.95,49.8'],{mk:true,alt:['Luxembourg'],calt:['Luksemburg']});
+K('DE','Saksamaa','Berliin','W',[10.2,51],['8.7,54.9 9.9,54.8 10.9,54 12,54.2 13.8,54 14.3,53.9 14.2,52.8 14.7,52.1 15,51.1 14.8,50.9 12.9,50.4 12.2,50.3 12.5,49.6 13.8,48.75 13,47.5 12.2,47.65 10.9,47.5 10.2,47.3 9.6,47.5 8.6,47.7 7.6,47.6 8.2,49 6.4,49.5 6.1,50.1 6.2,50.8 5.95,51.2 6,51.8 7.1,52.4 7.2,53.2 7,53.5 8.2,53.6 8.6,53.9'],{calt:['Berlin']});
+K('CH','Šveits','Bern','W',[8.2,46.8],['6,46.3 6.9,47.4 7.6,47.6 8.6,47.7 9.6,47.5 9.6,47.05 10.4,46.6 9.3,46.5 8.5,46.4 7.9,45.9 7,45.9'],{alt:['Sveits']});
+K('LI','Liechtenstein','Vaduz','W',[9.55,47.16],[],{mk:true});
+K('AT','Austria','Viin','C',[14,47.4],['9.6,47.05 9.6,47.5 10.2,47.3 10.9,47.5 12.2,47.65 13,47.5 13.8,48.75 14.5,48.6 15,48.95 16.9,48.6 17.1,48 16.5,47.7 16.1,46.85 15,46.6 13.7,46.5 12.2,47.05 11.1,46.95 10.5,46.85 10.4,46.6'],{calt:['Wien']});
+K('IT','Itaalia','Rooma','S',[11.8,42.9],[
+ '7,45.9 7.9,45.9 8.5,46.4 9.3,46.5 10.4,46.6 10.5,46.85 11.1,46.95 12.2,47.05 13.7,46.5 13.6,45.8 13.7,45.6 12.3,45.3 12.5,44.2 13.6,43.5 14,42.7 15,42 16,41.9 16.4,41.2 17.9,40.7 18.5,40.15 17.2,40.4 16.6,39.7 17.1,39 16.5,38.4 15.7,37.95 15.9,38.7 15.7,40 14.9,40.35 14.3,40.8 13,41.3 12,41.95 11.1,42.4 10.5,42.95 10.3,43.5 9.8,44.1 8.9,44.4 8,43.9 7.6,44.2',
+ '12.5,38 13.4,38.2 15.6,38.3 15.1,36.7 14.3,36.8 12.7,37.6',
+ '8.2,41 9.2,41.25 9.7,40.5 9.6,39.2 8.5,38.9 8.4,40'],{calt:['Roma']});
+K('SM','San Marino','San Marino','S',[12.45,43.94],[],{mk:true});
+K('VA','Vatikan','Vatikan','S',[12.45,41.9],[],{mk:true,alt:['Vatikani']});
+K('MT','Malta','Valletta','S',[14.4,35.9],[],{mk:true});
+K('DK','Taani','Kopenhaagen','N',[9.4,56.1],[
+ '8.1,55.6 8.7,54.9 9.9,54.8 10.1,55.5 9.9,56.2 10.5,56.5 10.4,57.2 10.6,57.7 9.5,57.2 8.6,57.1 8.2,56.7 8.1,56',
+ '11.2,55.3 12.3,55.1 12.6,55.7 12.3,56.1 11.3,56',
+ '10.2,55.1 10.8,55.1 10.8,55.6 10.2,55.6'],{calt:['Kobenhavn','Kopenhagen']});
+K('NO','Norra','Oslo','N',[9.5,61.8],['5.5,58.8 7,58 8.5,58.3 9.8,59 10.7,59.5 11.3,59.1 11.8,59.3 12.3,60.5 12,61 12.3,62 12,63 13.3,64 14.4,65 15.5,66.3 16.5,67.5 18,68.5 20,69.1 21,69.2 22.3,68.7 23.5,68.8 25,68.8 26.5,69.1 28.9,69.05 30,69.5 31,70.2 28,71.1 25,71 22,70.4 19,70.2 17,69.5 15,68.6 14,67.7 12.5,66.5 11,65 9,63.7 7,62.7 5.2,61.5 5,60.2 5.3,59.3']);
+K('SE','Rootsi','Stockholm','N',[15.5,62.5],['11.3,59.1 11,58.4 11.8,57.7 12.5,56.5 12.9,55.6 14.3,55.5 15.8,56.1 16.4,57 16.7,58.4 17.8,58.9 18.9,59.6 17.3,60.7 17.5,61.6 17.3,62.5 18.7,63.5 20.2,63.8 21.5,64.6 22.4,65.5 24.1,65.8 23.6,66.6 23.8,67.4 23.2,68.2 20.6,69.05 20,69.1 18,68.5 16.5,67.5 15.5,66.3 14.4,65 13.3,64 12,63 12.3,62 12,61 12.3,60.5 11.8,59.3']);
+K('FI','Soome','Helsingi','N',[26.5,63.5],['22,60 23.5,59.95 25,60.1 26.9,60.4 28,60.55 28.8,61.5 31.5,62.9 29.9,64 30,65 29.6,66.5 28.5,68 28.9,69.05 26.5,69.1 25,68.8 23.5,68.8 22.3,68.7 21,69 20.6,69.05 23.2,68.2 23.8,67.4 23.6,66.6 24.1,65.8 25.4,65 25,64 23,63 21.5,61.5 21.3,60.5'],{calt:['Helsinki']});
+K('EE','Eesti','Tallinn','N',[25.5,58.7],[
+ '24.35,57.9 26,57.8 27.35,57.55 27.5,58.5 28,59.45 26.5,59.55 25,59.55 23.6,59.2 23.5,58.6 24.4,58.3',
+ '21.8,58.2 22.6,58.6 23.2,58.4 22.2,57.95 21.9,58',
+ '22.4,58.85 23.1,59.1 22.9,58.75']);
+K('LV','Läti','Riia','N',[25,56.9],['21.05,56.1 22.5,56.4 24,56.3 24.9,56.4 26,56.1 26.6,55.7 27.5,55.8 28.2,56.15 28.1,56.6 27.7,57.2 27.35,57.55 26,57.8 24.35,57.9 24.3,57.3 23.6,57 23.3,57.1 22.6,57.75 21.7,57.55 21.05,56.8'],{calt:['Riga']});
+K('LT','Leedu','Vilnius','N',[23.9,55.4],['21.05,56.1 22.5,56.4 24,56.3 24.9,56.4 26,56.1 26.6,55.7 25.7,54.9 25.5,54.3 24.7,53.95 23.5,53.95 23.5,54.15 22.8,54.4 21.2,55.2 21.1,55.7']);
+K('PL','Poola','Varssavi','C',[19.5,52],['14.3,53.9 16.2,54.3 18.4,54.8 19.6,54.45 22.8,54.35 23.5,54.15 23.5,52.7 23.2,52.2 23.7,51.5 24.1,50.8 23.5,50.4 22.6,49.5 22.5,49.05 20.5,49.4 19.5,49.6 18.8,49.5 18,50 17,50.3 16.4,50.6 14.8,50.9 15,51.1 14.7,52.1 14.2,52.8'],{calt:['Warszawa']});
+K('CZ','Tšehhi','Praha','C',[15.5,49.8],['14.8,50.9 15,51.1 16.4,50.6 17,50.3 18,50 18.8,49.5 17.6,48.85 16.9,48.6 15,48.95 14.5,48.6 13.8,48.75 12.5,49.6 12.2,50.3 12.9,50.4'],{alt:['Tšehhia','Tsehhia','Tšehhimaa','Tšehhi Vabariik'],calt:['Prague']});
+K('SK','Slovakkia','Bratislava','C',[19.5,48.7],['16.9,48.6 17.6,48.85 18.8,49.5 19.5,49.6 20.5,49.4 22.5,49.05 22.1,48.4 21,48.5 19.6,48.2 18.8,47.85 17.8,47.75 17.1,48'],{alt:['Slovakia']});
+K('HU','Ungari','Budapest','C',[19.2,47.1],['17.1,48 17.8,47.75 18.8,47.85 19.6,48.2 21,48.5 22.1,48.4 22.9,47.95 22,47.5 21.5,46.8 20.5,46.1 18.9,45.9 17.6,45.95 16.6,46.5 16.1,46.85 16.5,47.7']);
+K('SI','Sloveenia','Ljubljana','C',[14.8,46.1],['13.7,46.5 15,46.6 16.1,46.85 16.3,46.5 15.7,45.8 14.6,45.5 13.7,45.6 13.6,45.8']);
+K('HR','Horvaatia','Zagreb','B',[17,45.7],['13.6,44.9 13.7,45.6 14.6,45.5 15.7,45.8 16.3,46.5 16.6,46.5 17.6,45.95 18.9,45.9 19,45.35 18,45.15 16.8,45.2 16,45.2 15.9,44.8 16.2,44.2 17,43.6 17.7,43 18.5,42.4 17.4,42.95 16.4,43.5 15.3,44.1 14.8,44.7 14.3,45.2']);
+K('BA','Bosnia ja Hertsegoviina','Sarajevo','B',[17.9,44.2],['18,45.15 19,45.35 19.2,44.8 19.4,44 19,43.5 18.7,43 18.5,42.65 17.7,43 17,43.6 16.2,44.2 15.9,44.8 16,45.2 16.8,45.2'],{s:'Bosnia',alt:['Bosnia','Bosnia Hertsegoviina']});
+K('RS','Serbia','Belgrad','B',[20.8,44.2],['19,45.35 18.9,45.9 19.6,46.15 20.5,46.1 21.1,45.3 21.4,44.8 22,44.6 22.65,44.25 22.5,43.5 22.9,43 22.4,42.3 21.8,42.5 21.5,43 20.7,43.2 20.35,42.85 19.7,43.2 19.2,43.5 19,43.5 19.4,44 19.2,44.8'],{calt:['Beograd']});
+K('ME','Montenegro','Podgorica','B',[19.3,42.8],['18.5,42.4 19.4,41.85 20,42.5 20.35,42.85 19.7,43.2 19.2,43.5 19,43.5 18.7,43 18.5,42.65'],{alt:['Montenegro','Must Mägi']});
+K('XK','Kosovo','Prishtina','B',[21,42.6],['20.35,42.85 20,42.5 20.6,42.15 21.4,42.2 21.8,42.5 21.5,43 20.7,43.2'],{calt:['Priština','Pristina']});
+K('AL','Albaania','Tirana','B',[20,41.2],['19.4,41.85 20,42.5 20.6,42.15 20.5,41.6 20.5,41.1 21,40.85 20.7,40.1 20,39.7 19.4,40.2 19.5,41 19.4,41.5']);
+K('MK','Põhja-Makedoonia','Skopje','B',[21.7,41.6],['20.6,42.15 21.4,42.2 21.8,42.5 22.4,42.3 22.95,41.35 22.2,41.1 21,40.85 20.5,41.1 20.5,41.6'],{s:'P-Makedoonia',alt:['Makedoonia']});
+K('GR','Kreeka','Ateena','S',[22,39.4],[
+ '20,39.7 20.7,40.1 21,40.85 22.2,41.1 22.95,41.35 24,41.5 25.3,41.25 26.1,41.35 26.2,40.85 25,40.9 24,40.4 23.3,40.3 22.6,40.5 22.9,39.6 23.3,39 24.1,38.2 24,37.7 23.4,37.9 23.1,37.6 23.2,36.5 22.4,36.5 21.7,36.8 21.2,37.5 21.4,38.2 21,38.5 20.7,39 20.2,39.4',
+ '23.6,35.3 26.3,35.3 26,35 24,35.1'],{calt:['Athina','Athens']});
+K('BG','Bulgaaria','Sofia','B',[25.2,42.8],['22.65,44.25 23.5,43.8 25,43.7 26,43.9 27.3,44 28.55,43.75 28.5,43.4 27.9,42.7 28,41.95 26.5,41.8 26.1,41.35 25.3,41.25 24,41.5 22.95,41.35 22.4,42.3 22.9,43 22.5,43.5']);
+K('RO','Rumeenia','Bukarest','B',[24.9,45.8],['20.5,46.1 21.5,46.8 22,47.5 22.9,47.95 24,47.95 25,47.7 26,48.2 26.6,48.25 27,48 27.4,47.3 27.9,46.4 28.2,45.45 29.6,45.55 29.7,45.2 29,44.8 28.6,44.2 28.55,43.75 27.3,44 26,43.9 25,43.7 23.5,43.8 22.65,44.25 22,44.6 21.4,44.8 21.1,45.3'],{calt:['Bucuresti']});
+K('MD','Moldova','Chișinău','E',[28.5,47.2],['26.6,48.25 27.5,48.45 28.5,48.1 29.2,47.9 29.9,46.9 30.1,46.4 29.6,45.55 28.2,45.45 27.9,46.4 27.4,47.3 27,48'],{calt:['Chisinau','Kišinjov','Kishinev','Kisinev']});
+K('UA','Ukraina','Kiiev','E',[31,49],['22.1,48.4 22.9,47.95 24,47.95 25,47.7 26,48.2 26.6,48.25 27.5,48.45 28.5,48.1 29.2,47.9 29.9,46.9 30.1,46.4 30.8,46.6 31.8,46.3 32.5,46 33.6,46.1 32.5,45.4 33.5,44.4 34.6,44.8 35.5,45.1 36.5,45.4 35.2,46 36.7,46.7 37.8,47.1 38.5,47.2 39.8,47.8 39.8,48.4 40.1,49.6 38,50 36.5,50.3 35.5,51.2 34.3,51.7 33.5,52.3 32.3,52.3 31.8,52.1 30.7,51.4 29.3,51.4 28,51.6 26,51.8 24.1,51.6 23.6,51.5 24.1,50.8 23.5,50.4 22.6,49.5 22.5,49.05'],{calt:['Kiev','Kyiv']});
+K('BY','Valgevene','Minsk','E',[28,53.6],['23.5,52.7 23.2,52.2 23.6,51.5 24.1,51.6 26,51.8 28,51.6 29.3,51.4 30.7,51.4 31.8,52.1 32.5,52.3 32,53.1 31.3,54 30.8,54.8 30.5,55.7 29.5,55.9 28.2,56.15 27.5,55.8 26.6,55.7 25.7,54.9 25.5,54.3 24.7,53.95 23.5,53.95'],{alt:['Belarus']});
+K('RU','Venemaa','Moskva','E',[38,56],[
+ '28,59.45 27.5,58.5 27.5,57.8 27.35,57.55 27.7,57.2 28.1,56.6 28.2,56.15 29.5,55.9 30.5,55.7 30.8,54.8 31.3,54 32,53.1 32.5,52.3 33.5,52.3 34.3,51.7 35.5,51.2 36.5,50.3 38,50 40.1,49.6 39.8,48.4 39.8,47.8 38.5,47.2 38.3,46.6 37.6,46.1 38.2,45.2 37.4,44.7 39.3,43.6 40,43.4 42,43.2 45,42.6 45,68 41,67.5 36,69.2 33,69.5 31,70.2 30,69.5 28.9,69.05 28.5,68 29.6,66.5 30,65 29.9,64 31.5,62.9 28.8,61.5 28,60.55 28.7,60.4 30.2,59.95 29,59.7',
+ '19.7,54.45 20.6,54.95 21.2,55.2 22.8,54.4 22.8,54.35 21.5,54.3'],{calt:['Moscow']});
+K('TR','Türgi','Ankara','E',[33,39],['26.1,41.35 26.5,41.8 28,41.95 29.1,41.2 31,41.1 33,42 35,42 36.5,41.3 38,41 41.5,41.5 43,41.1 44.3,40 44.6,39.7 44,38.5 44.5,37.2 42.4,37.1 38.8,36.8 36.7,36.8 36.2,36 35.7,36.6 34,36.2 32.5,36.1 30.5,36.6 29,36.6 27.5,37 27.2,37.7 26.3,38.3 26.8,39.1 26.1,39.5 26.8,40.4 26.2,40.65'],{alt:['Türkiye','Turkey','Turgi']});
+K('CY','Küpros','Nikosia','S',[33,35],['32.3,35.1 33,35.4 34,35.6 34.6,35.7 33.6,35 32.9,34.6 32.4,34.7'],{calt:['Nicosia','Lefkosia']});
+
+var OTHERS=[
+ '-10,35.8 -6,35.8 -2,35.2 3,36.8 10,37.3 11,36 11,34 -10,34',
+ '36.2,36 35.7,36.6 36.7,36.8 38.8,36.8 42.4,37.1 45,37.2 45,34 35.8,34 35.9,35',
+ '40,43.4 42,43.2 45,42.6 45,39.6 44.6,39.7 44.3,40 43,41.1 41.5,41.5'
+];
+
+var byId={};
+DATA.forEach(function(c){
+  byId[c.id]=c;
+  var bb=null,bw=0;
+  c.p.forEach(function(pg){
+    var x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+    pg.forEach(function(pt){var x=X(pt[0]),y=Y(pt[1]);if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y});
+    if(x1-x0>bw)bw=x1-x0;
+    if(!bb)bb=[x0,y0,x1,y1];else{bb=[Math.min(bb[0],x0),Math.min(bb[1],y0),Math.max(bb[2],x1),Math.max(bb[3],y1)]}
+  });
+  c.bb=bb;c.bw=bw;c.ax=X(c.a[0]);c.ay=Y(c.a[1]);c.dim=false;c.els=[];
+});
+
+/* ---------- storage and helpers ---------- */
+function sget(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
+function sset(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+var weak=new Set(sget('eu-weak-v1',[]));
+function saveWeak(){sset('eu-weak-v1',Array.from(weak))}
+function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t}return a}
+function norm(s){return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'')}
+function lev(a,b){var m=a.length,n=b.length,d=[],i,j;for(i=0;i<=m;i++){d[i]=[i]}for(j=1;j<=n;j++)d[0][j]=j;
+  for(i=1;i<=m;i++)for(j=1;j<=n;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return d[m][n]}
+function grade(inp,answers){var x=norm(inp);if(!x)return 0;var best=0;
+  for(var i=0;i<answers.length;i++){var y=norm(answers[i]);if(x===y)return 2;if(y.length>=6&&lev(x,y)<=1)best=1}return best}
+function nameAns(c){return [c.n].concat(c.alt)}
+function capAns(c){return [c.c].concat(c.calt)}
+var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- map build ---------- */
+var svg=$('#map');
+function mk(tag,attrs,parent){var e=document.createElementNS(NS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e}
+mk('rect',{x:0,y:0,width:W,height:H,fill:'var(--sea)'},svg);
+var gGrid=mk('g',{'class':'grid'},svg);
+for(var lo=-20;lo<=40;lo+=10){mk('line',{x1:X(lo),y1:0,x2:X(lo),y2:H},gGrid)}
+for(var la=40;la<=70;la+=10){mk('line',{x1:0,y1:Y(la),x2:W,y2:Y(la)},gGrid)}
+function pathD(pg){return 'M'+pg.map(function(pt){return X(pt[0]).toFixed(1)+' '+Y(pt[1]).toFixed(1)}).join('L')+'Z'}
+var gOther=mk('g',{'class':'o'},svg);
+OTHERS.forEach(function(s){mk('path',{d:pathD(poly(s))},gOther)});
+var gLand=mk('g',{},svg),gMk=mk('g',{},svg),gLab=mk('g',{'class':'lab'},svg),gBd=mk('g',{},svg);
+var markers=[],sg=[],labs=[];
+DATA.forEach(function(c){
+  if(c.p.length){
+    var g=mk('g',{'class':'c reg-'+c.r,'data-id':c.id},gLand);
+    c.p.forEach(function(pg){mk('path',{d:pathD(pg)},g)});
+    c.els.push(g);
+  }
+  if(c.mk||!c.p.length){
+    var m=mk('circle',{'class':'c mk reg-'+c.r,'data-id':c.id,cx:c.ax,cy:c.ay,r:6},gMk);
+    markers.push(m);c.els.push(m);
+  }
+  var lg=mk('g',{},gLab);var t=mk('text',{x:0,y:4},lg);t.textContent=c.s;
+  var o={el:lg,x:c.ax,y:c.ay-(c.micro?10:0)};sg.push(o);labs.push({c:c,el:lg,len:c.s.length,o:o});
+});
+var labOrder=labs.slice().sort(function(a,b){return b.c.bw-a.c.bw});
+
+/* ---------- view: zoom and pan ---------- */
+var FULL={x:0,y:0,w:W,h:H},vb={x:0,y:0,w:W,h:H},raf=0;
+function clampVB(v){var w=Math.min(W,Math.max(MINW,v.w)),h=w*H/W;return {x:Math.min(W-w,Math.max(0,v.x)),y:Math.min(H-h,Math.max(0,v.y)),w:w,h:h}}
+function scaleU(){var r=svg.getBoundingClientRect();return r.width?vb.w/r.width:1}
+var labelsOn=true,labelSet=null;
+function refreshLabels(){
+  var s=scaleU(),z=W/vb.w,placed=[];
+  labOrder.forEach(function(l){var c=l.c,v=labelsOn&&!c.dim;
+    if(v){if(labelSet)v=labelSet.has(c.id);else v=c.micro?z>=3.2:(c.bw/s>=l.len*5.8)}
+    if(v&&!labelSet){
+      var sx=(l.o.x-vb.x)/s,sy=(l.o.y-vb.y)/s,hw=l.len*3.3+2,hh=8;
+      for(var i=0;i<placed.length;i++){var q=placed[i];if(Math.abs(sx-q[0])<hw+q[2]&&Math.abs(sy-q[1])<hh+q[3]){v=false;break}}
+      if(v)placed.push([sx,sy,hw,hh]);
+    }
+    l.el.style.display=v?'':'none'});
+}
+function refreshScale(){
+  var s=scaleU();
+  sg.forEach(function(o){o.el.setAttribute('transform','translate('+o.x+' '+o.y+') scale('+s+')')});
+  markers.forEach(function(m){m.setAttribute('r',(6.5*s).toFixed(2))});
+  refreshLabels();
+}
+function setVB(v){vb=clampVB(v);svg.setAttribute('viewBox',vb.x.toFixed(2)+' '+vb.y.toFixed(2)+' '+vb.w.toFixed(2)+' '+vb.h.toFixed(2));refreshScale()}
+function animateVB(t){
+  t=clampVB(t);cancelAnimationFrame(raf);
+  if(reduce){setVB(t);return}
+  var s={x:vb.x,y:vb.y,w:vb.w,h:vb.h},t0=performance.now();
+  (function step(now){var k=Math.min(1,(now-t0)/260),e=1-Math.pow(1-k,3);
+    setVB({x:s.x+(t.x-s.x)*e,y:s.y+(t.y-s.y)*e,w:s.w+(t.w-s.w)*e,h:s.h+(t.h-s.h)*e});
+    if(k<1)raf=requestAnimationFrame(step)})(t0);
+}
+function zoomAt(cx,cy,f){
+  var r=svg.getBoundingClientRect(),px=(cx-r.left)/r.width,py=(cy-r.top)/r.height;
+  var nw=Math.min(W,Math.max(MINW,vb.w/f)),nh=nw*H/W;
+  setVB({x:vb.x+(vb.w-nw)*px,y:vb.y+(vb.h-nh)*py,w:nw,h:nh});
+}
+function focusOn(id){
+  var c=byId[id],cx,cy,w;
+  if(c.bb&&!c.micro){cx=(c.bb[0]+c.bb[2])/2;cy=(c.bb[1]+c.bb[3])/2;w=Math.max((c.bb[2]-c.bb[0])*2.4,(c.bb[3]-c.bb[1])*2.4*W/H,150)}
+  else{cx=c.ax;cy=c.ay;w=100}
+  animateVB({x:cx-w/2,y:cy-w*H/W/2,w:w,h:w*H/W});
+}
+svg.addEventListener('wheel',function(e){e.preventDefault();zoomAt(e.clientX,e.clientY,Math.exp(-e.deltaY*0.0016))},{passive:false});
+$('#zIn').addEventListener('click',function(){var r=svg.getBoundingClientRect();zoomAt(r.left+r.width/2,r.top+r.height/2,1.6)});
+$('#zOut').addEventListener('click',function(){var r=svg.getBoundingClientRect();zoomAt(r.left+r.width/2,r.top+r.height/2,1/1.6)});
+$('#zReset').addEventListener('click',function(){animateVB(FULL)});
+
+var ptrs=new Map(),moved=0,downTarget=null,pinch=null;
+svg.addEventListener('pointerdown',function(e){
+  ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(ptrs.size===1){moved=0;downTarget=e.target;cancelAnimationFrame(raf)}
+  if(ptrs.size===2){var p=Array.from(ptrs.values());pinch=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y);moved=99}
+});
+svg.addEventListener('pointermove',function(e){
+  var p=ptrs.get(e.pointerId);if(!p)return;
+  var dx=e.clientX-p.x,dy=e.clientY-p.y;
+  if(ptrs.size===1){
+    moved+=Math.abs(dx)+Math.abs(dy);
+    if(moved>6){var s=scaleU();setVB({x:vb.x-dx*s,y:vb.y-dy*s,w:vb.w,h:vb.h})}
+    p.x=e.clientX;p.y=e.clientY;
+  }else if(ptrs.size===2){
+    p.x=e.clientX;p.y=e.clientY;
+    var a=Array.from(ptrs.values()),d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);
+    if(pinch&&d>0){zoomAt((a[0].x+a[1].x)/2,(a[0].y+a[1].y)/2,d/pinch)}
+    pinch=d;
+  }
+});
+function endPtr(e){
+  var had=ptrs.has(e.pointerId);ptrs.delete(e.pointerId);
+  if(ptrs.size<2)pinch=null;
+  if(had&&e.type==='pointerup'&&moved<=6&&ptrs.size===0){onMapTap(downTarget)}
+}
+svg.addEventListener('pointerup',endPtr);
+svg.addEventListener('pointercancel',endPtr);
+if(window.ResizeObserver){new ResizeObserver(refreshScale).observe(svg)}else{window.addEventListener('resize',refreshScale)}
+
+/* ---------- state painting ---------- */
+function setCls(id,cls,on){byId[id].els.forEach(function(e){e.classList.toggle(cls,on)})}
+function clearState(){DATA.forEach(function(c){c.els.forEach(function(e){e.classList.remove('ok','bad','sel')})})}
+function select(id){
+  clearState();if(!id)return;setCls(id,'sel',true);
+  var c=byId[id];c.els.forEach(function(e){if(e.parentNode)e.parentNode.appendChild(e)});
+}
+var R=new Set(RK),mode='learn',plain=false,dimFn=function(c){return !R.has(c.r)};
+function applyDim(){DATA.forEach(function(c){c.dim=dimFn(c);c.els.forEach(function(e){e.classList.toggle('dim',c.dim)})});refreshLabels()}
+function applyPlain(){svg.classList.toggle('plain',plain);var b=$('#plainBtn');if(b)b.setAttribute('aria-pressed',String(plain))}
+
+function renderBar(){
+  var bar=$('#bar');
+  var h='<button class="chip" id="allBtn" aria-pressed="'+(R.size===RK.length)+'">Kõik</button>';
+  RK.forEach(function(k){h+='<button class="chip" data-r="'+k+'" aria-pressed="'+R.has(k)+'" title="'+REG[k]+'"><i class="dot reg-'+k+'"></i>'+REGSHORT[k]+'</button>'});
+  h+='<button class="chip" id="plainBtn" aria-pressed="'+plain+'" title="Näita kõiki riike ühevärvilisena">Ühevärviline</button>';
+  bar.innerHTML=h;
+}
+$('#bar').addEventListener('click',function(e){
+  var b=e.target.closest('button');if(!b)return;
+  if(b.id==='plainBtn'){plain=!plain;applyPlain();return}
+  if(b.id==='allBtn'){R=new Set(RK)}
+  else if(b.dataset.r){var r=b.dataset.r;
+    if(R.size===RK.length){R=new Set([r])}else{if(R.has(r))R.delete(r);else R.add(r);if(!R.size)R=new Set(RK)}}
+  else return;
+  renderBar();applyPlain();onRegionChange();
+});
+
+/* ---------- mode switching ---------- */
+var panel=$('#panel');
+function setMode(m){
+  mode=m;clearTimeout(P.timer);
+  document.querySelectorAll('.tab').forEach(function(t){t.setAttribute('aria-selected',String(t.dataset.mode===m))});
+  clearState();clearBadges();
+  plain=(m==='test');renderBar();applyPlain();
+  animateVB(FULL);
+  if(m==='learn')learnInit();else if(m==='point')pointInit();else testInit();
+}
+document.querySelector('.tabs').addEventListener('click',function(e){var b=e.target.closest('.tab');if(b)setMode(b.dataset.mode)});
+function onRegionChange(){if(mode==='learn')learnInit(true);else if(mode==='point')pointStart();else testNew()}
+function onMapTap(t){
+  if(!t||!t.closest)return;
+  var bd=t.closest('[data-b]');if(bd&&mode==='test'){testFocus(bd.dataset.b,true);return}
+  var el=t.closest('[data-id]');if(!el)return;
+  var id=el.dataset.id,c=byId[id];if(!c||c.dim)return;
+  if(mode==='learn')learnPick(id,true);else if(mode==='point')pointPick(id);
+}
+
+/* ---------- LEARN ---------- */
+var L={hide:false,q:'',sel:null};
+function learnInit(keep){
+  dimFn=function(c){return !R.has(c.r)};
+  labelsOn=sessionLabels;labelSet=null;
+  if(!keep){L.sel=null}
+  panel.innerHTML=
+   '<div class="card info" id="info" aria-live="polite"></div>'+
+   '<div class="card"><div class="row"><label class="chk"><input type="checkbox" id="lNames"'+(sessionLabels?' checked':'')+'> Nimed kaardil</label>'+
+   '<label class="chk"><input type="checkbox" id="lHide"'+(L.hide?' checked':'')+'> Varja pealinnad</label></div>'+
+   '<p class="muted small" style="margin:8px 0 0">Suurenda kaarti, et näha väikeseid riike. Vatikan, San Marino, Monaco, Andorra, Liechtenstein ja Malta on punktid.</p></div>'+
+   '<input id="lSearch" type="search" placeholder="Otsi riiki või pealinna" autocomplete="off" spellcheck="false" value="'+L.q+'">'+
+   '<ul class="list" id="lList"></ul>';
+  $('#lNames').addEventListener('change',function(e){sessionLabels=labelsOn=e.target.checked;refreshLabels()});
+  $('#lHide').addEventListener('change',function(e){L.hide=e.target.checked;learnList();learnInfo()});
+  $('#lSearch').addEventListener('input',function(e){L.q=e.target.value;learnList()});
+  $('#lList').addEventListener('click',function(e){var b=e.target.closest('.li');if(!b)return;
+    var lc=b.querySelector('.lc');if(L.hide&&lc)lc.classList.remove('blur');learnPick(b.dataset.id,true,true)});
+  applyDim();learnList();learnInfo();
+  if(L.sel)select(L.sel);
+}
+var sessionLabels=true;
+function learnList(){
+  var q=norm(L.q),items=DATA.filter(function(c){return R.has(c.r)&&(!q||norm(c.n).indexOf(q)>-1||norm(c.c).indexOf(q)>-1)})
+    .sort(function(a,b){return a.n.localeCompare(b.n,'et')});
+  $('#lList').innerHTML=items.map(function(c){
+    return '<li><button class="li'+(L.sel===c.id?' on':'')+'" data-id="'+c.id+'"><i class="dot reg-'+c.r+'"></i><span>'+c.n+'</span><span class="lc'+(L.hide&&L.sel!==c.id?' blur':'')+'">'+c.c+'</span></button></li>'}).join('')||'<li class="muted" style="padding:12px">Midagi ei leitud.</li>';
+}
+function learnInfo(){
+  var el=$('#info');if(!el)return;
+  if(!L.sel){el.innerHTML='<div class="eyebrow">Õppimine</div><p style="margin:6px 0 0">Vajuta kaardil riigile või vali nimekirjast. Siis näed nime ja pealinna.</p>';return}
+  var c=byId[L.sel];
+  el.innerHTML='<div class="eyebrow">'+REG[c.r]+'</div><h2>'+c.n+'</h2><div class="cap">Pealinn: <b>'+c.c+'</b></div>';
+}
+function learnPick(id,fromMap,fromList){
+  L.sel=id;select(id);learnInfo();
+  document.querySelectorAll('.li').forEach(function(b){var on=b.dataset.id===id;b.classList.toggle('on',on);
+    if(on){var lc=b.querySelector('.lc');if(lc)lc.classList.remove('blur');if(fromMap)b.scrollIntoView({block:'nearest'})}});
+  if(fromList||byId[id].micro)focusOn(id);
+}
+
+/* ---------- POINT ---------- */
+var P={q:[],i:0,cur:null,phase:'idle',score:0,tot:0,streak:0,askCap:true,weakOnly:false,timer:0,msg:'',kind:''};
+function pointInit(){
+  dimFn=function(c){return !R.has(c.r)};labelsOn=true;labelSet=new Set();
+  panel.innerHTML=
+   '<div class="card"><div class="eyebrow" id="pProg"></div><div class="qname" id="pQ"></div><div class="fb" id="pFb" role="status" aria-live="polite"></div>'+
+   '<form id="pCap" hidden autocomplete="off"><label for="pCapIn" class="muted small">Mis on pealinn?</label><div class="inl"><input type="text" id="pCapIn" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Pealinn"><button class="btn pri" type="submit">Kontrolli</button></div></form>'+
+   '<div class="row" style="margin-top:10px"><button class="btn" id="pSkip" type="button">Ei tea</button><button class="btn pri" id="pNext" type="button" hidden>Edasi</button></div></div>'+
+   '<div class="card stats"><div class="stat"><b id="sScore">0</b><span>õigeid</span></div><div class="stat"><b id="sTot">0</b><span>vastatud</span></div><div class="stat"><b id="sStreak">0</b><span>seeria</span></div></div>'+
+   '<div class="card"><label class="chk"><input type="checkbox" id="oCap"'+(P.askCap?' checked':'')+'> Küsi ka pealinna</label>'+
+   '<label class="chk" style="margin-top:8px"><input type="checkbox" id="oWeak"'+(P.weakOnly?' checked':'')+'> Ainult need, mis on läinud valesti (<span id="wCount">0</span>)</label>'+
+   '<div class="row" style="margin-top:10px"><button class="btn" id="pRestart" type="button">Alusta uuesti</button><button class="btn" id="pClear" type="button">Unusta vead</button></div></div>';
+  $('#pCap').addEventListener('submit',function(e){e.preventDefault();pointCap()});
+  $('#pSkip').addEventListener('click',pointSkip);
+  $('#pNext').addEventListener('click',pointNext);
+  $('#oCap').addEventListener('change',function(e){P.askCap=e.target.checked;pointStart()});
+  $('#oWeak').addEventListener('change',function(e){P.weakOnly=e.target.checked;pointStart()});
+  $('#pRestart').addEventListener('click',pointStart);
+  $('#pClear').addEventListener('click',function(){weak.clear();saveWeak();P.weakOnly=false;$('#oWeak').checked=false;pointStart()});
+  applyDim();pointStart();
+}
+function pointStart(){
+  clearTimeout(P.timer);clearState();
+  var pool=DATA.filter(function(c){return R.has(c.r)}).map(function(c){return c.id});
+  if(P.weakOnly)pool=pool.filter(function(id){return weak.has(id)});
+  P.q=shuffle(pool);P.i=0;P.score=0;P.tot=0;P.streak=0;
+  animateVB(FULL);pointNext();
+}
+function pointNext(){
+  clearTimeout(P.timer);clearState();labelSet=new Set();refreshLabels();
+  if(P.i>=P.q.length){P.cur=null;P.phase='done';P.msg='';P.kind='';pointPaint();return}
+  P.cur=byId[P.q[P.i++]];P.phase='ask';P.msg='';P.kind='';
+  if(vb.w<W*0.99)animateVB(FULL);
+  pointPaint();
+}
+function pointPaint(){
+  var c=P.cur;
+  $('#pProg').textContent=P.phase==='done'?'Valmis':'Näita kaardil · '+Math.min(P.i,P.q.length)+' / '+P.q.length;
+  var q=$('#pQ');
+  if(P.phase==='done'){q.textContent=P.q.length?('Tulemus '+P.score+' / '+P.q.length):'Siin pole küsimusi'}
+  else q.textContent=c?c.n:'';
+  var fb=$('#pFb');fb.textContent=P.msg||(P.phase==='done'?(P.q.length?(P.score===P.q.length?'Kõik õiged!':'Vajuta "Alusta uuesti" või harjuta ainult vigu.'):(P.weakOnly?'Vigu pole. Võta linnuke maha.':'Vali vähemalt üks piirkond.')):(P.phase==='ask'?'Vajuta kaardil õigele riigile.':''));
+  fb.className='fb '+(P.kind||'');
+  var cap=$('#pCap');cap.hidden=P.phase!=='cap';
+  $('#pSkip').hidden=!(P.phase==='ask'||P.phase==='cap');
+  var nx=$('#pNext');nx.hidden=P.phase!=='result';
+  $('#sScore').textContent=P.score;$('#sTot').textContent=P.tot;$('#sStreak').textContent=P.streak;
+  $('#wCount').textContent=weak.size;
+  if(P.phase==='cap'){var i=$('#pCapIn');i.value='';i.focus({preventScroll:true})}
+  if(P.phase==='result'){nx.focus({preventScroll:true})}
+}
+function pointDone(full,msg){
+  var c=P.cur;P.phase='result';P.tot++;
+  if(full){P.score++;P.streak++;weak.delete(c.id)}else{P.streak=0;weak.add(c.id)}
+  saveWeak();labelSet=new Set([c.id]);refreshLabels();
+  P.msg=msg;P.kind=full?'ok':'bad';pointPaint();
+  if(full){var n=P.i;P.timer=setTimeout(function(){if(P.phase==='result'&&P.i===n)pointNext()},1200)}
+}
+function pointPick(id){
+  if(P.phase!=='ask')return;var c=P.cur;
+  if(id===c.id){
+    clearState();setCls(c.id,'ok',true);
+    if(P.askCap){P.phase='cap';P.msg='Õige! Mis on pealinn?';P.kind='ok';pointPaint()}
+    else pointDone(true,'Õige! Pealinn: '+c.c+'.');
+  }else{
+    clearState();setCls(id,'bad',true);setCls(c.id,'ok',true);
+    focusOn(c.id);
+    pointDone(false,'See on '+byId[id].n+'. '+c.n+' on rohelisega. Pealinn: '+c.c+'.');
+  }
+}
+function pointCap(){
+  if(P.phase!=='cap')return;var c=P.cur,v=$('#pCapIn').value;
+  var g=grade(v,capAns(c));
+  if(g===2)pointDone(true,'Õige! '+c.c+'.');
+  else if(g===1)pointDone(true,'Peaaegu. Õige kirjapilt on '+c.c+'.');
+  else pointDone(false,'Pealinn on '+c.c+'.');
+}
+function pointSkip(){
+  var c=P.cur;if(!c)return;
+  if(P.phase==='ask'){clearState();setCls(c.id,'ok',true);focusOn(c.id);pointDone(false,'See on '+c.n+'. Pealinn: '+c.c+'.')}
+  else if(P.phase==='cap')pointDone(false,'Pealinn on '+c.c+'.');
+}
+
+/* ---------- TEST ---------- */
+var T={ids:[],num:{},n:10,checked:false,sel:null};
+var badgeEls=[];
+function clearBadges(){badgeEls.forEach(function(o){var i=sg.indexOf(o);if(i>-1)sg.splice(i,1);o.el.remove()});badgeEls=[]}
+function testInit(){
+  dimFn=function(c){return !T.set||!T.set.has(c.id)};labelsOn=false;labelSet=new Set();
+  panel.innerHTML=
+   '<div class="card"><div class="row between"><label class="chk">Riike <select id="tN">'+[10,15,20,30,47].map(function(n){return '<option value="'+n+'"'+(n===T.n?' selected':'')+'>'+(n===47?'Kõik':n)+'</option>'}).join('')+'</select></label>'+
+   '<button class="btn" id="tNew" type="button">Uus test</button></div>'+
+   '<p class="muted small" style="margin:8px 0 0">Kaardil on numbrid. Kirjuta iga numbri juurde riik ja pealinn. Numbri peale vajutades hüppab kursor reale.</p></div>'+
+   '<div class="sheet" id="sheet"></div>'+
+   '<div class="row"><button class="btn pri" id="tCheck" type="button">Kontrolli</button></div>'+
+   '<div class="card" id="tRes" hidden aria-live="polite"></div>';
+  $('#tN').addEventListener('change',function(e){T.n=+e.target.value;testNew()});
+  $('#tNew').addEventListener('click',testNew);
+  $('#tCheck').addEventListener('click',testCheck);
+  testNew();
+}
+function testNew(){
+  clearState();clearBadges();
+  var pool=DATA.filter(function(c){return R.has(c.r)}).map(function(c){return c.id});
+  T.ids=T.force?shuffle(T.force):shuffle(pool).slice(0,Math.min(T.n,pool.length));T.force=null;
+  T.set=new Set(T.ids);T.num={};T.checked=false;T.sel=null;
+  T.ids.forEach(function(id,i){T.num[id]=i+1});
+  applyDim();
+  T.ids.forEach(function(id){
+    var c=byId[id],g=mk('g',{'class':'bd','data-b':id},gBd),dx=c.micro?15:0,dy=c.micro?-15:0;
+    var inner=mk('g',{transform:'translate('+dx+' '+dy+')'},g);
+    mk('circle',{r:11,cx:0,cy:0},inner);var t=mk('text',{x:0,y:0},inner);t.textContent=T.num[id];
+    var o={el:g,x:c.ax,y:c.ay};sg.push(o);badgeEls.push(o);
+  });
+  refreshScale();
+  var h='';
+  T.ids.forEach(function(id){h+='<div class="srow" data-id="'+id+'"><div class="num" data-n="'+id+'">'+T.num[id]+'</div>'+
+    '<input type="text" data-k="n" placeholder="Riik" aria-label="Riik nr '+T.num[id]+'" autocomplete="off" autocapitalize="off" spellcheck="false">'+
+    '<input type="text" data-k="c" placeholder="Pealinn" aria-label="Pealinn nr '+T.num[id]+'" autocomplete="off" autocapitalize="off" spellcheck="false"></div>'});
+  $('#sheet').innerHTML=h||'<div class="card muted">Vali vähemalt üks piirkond.</div>';
+  $('#tRes').hidden=true;
+  var sh=$('#sheet');
+  sh.onfocusin=function(e){var r=e.target.closest('.srow');if(r)testFocus(r.dataset.id,false)};
+  sh.onclick=function(e){var n=e.target.closest('.num');if(n){testFocus(n.dataset.n,true);n.parentNode.querySelector('input').focus()}};
+  sh.onkeydown=function(e){
+    if(e.key!=='Enter')return;var t=e.target;if(t.tagName!=='INPUT')return;e.preventDefault();
+    var all=Array.from(sh.querySelectorAll('input')),i=all.indexOf(t);if(all[i+1])all[i+1].focus();else $('#tCheck').focus();
+  };
+}
+function testFocus(id,zoom){
+  T.sel=id;
+  badgeEls.forEach(function(o){o.el.classList.toggle('on',o.el.dataset.b===id)});
+  DATA.forEach(function(c){c.els.forEach(function(e){e.classList.remove('sel')})});
+  setCls(id,'sel',true);
+  if(zoom){var r=document.querySelector('.srow[data-id="'+id+'"]');if(r)r.scrollIntoView({block:'nearest',behavior:reduce?'auto':'smooth'});if(byId[id].micro)focusOn(id)}
+}
+function testCheck(){
+  var okN=0,okC=0,wrongIds=[],rows=document.querySelectorAll('.srow');
+  rows.forEach(function(r){
+    var id=r.dataset.id,c=byId[id],ins=r.querySelectorAll('input');
+    var gn=grade(ins[0].value,nameAns(c)),gc=grade(ins[1].value,capAns(c));
+    if(gn)okN++;if(gc)okC++;
+    var full=gn&&gc;
+    r.classList.toggle('ok',!!full);r.classList.toggle('bad',!full);
+    var old=r.querySelector('.ans');if(old)old.remove();
+    var a=document.createElement('div');a.className='ans';
+    var mkr=function(g){return g===2?'<span class="mark ok">✓</span>':g===1?'<span class="mark near">~</span>':'<span class="mark bad">✗</span>'};
+    a.innerHTML=mkr(gn)+' '+mkr(gc)+' &nbsp;'+(full===2||(gn===2&&gc===2)?'':'Õige: <b>'+c.n+'</b> · <b>'+c.c+'</b>');
+    r.appendChild(a);
+    clearTestFill(id);setCls(id,full?'ok':'bad',true);
+    if(full)weak.delete(id);else{weak.add(id);wrongIds.push(id)}
+  });
+  saveWeak();
+  var n=T.ids.length,res=$('#tRes');res.hidden=false;
+  res.innerHTML='<div class="eyebrow">Tulemus</div><div class="stats" style="margin-top:6px"><div class="stat"><b>'+okN+' / '+n+'</b><span>riigid</span></div><div class="stat"><b>'+okC+' / '+n+'</b><span>pealinnad</span></div></div>'+
+    '<p class="muted small" style="margin:8px 0 0">✓ õige, ~ peaaegu (kirjaviga), ✗ vale. Valed lähevad harjutamiseks ka režiimi „Näita kaardil“.</p>'+
+    '<div class="row" style="margin-top:10px">'+(wrongIds.length?'<button class="btn pri" id="tRetry" type="button">Korda ainult valesid ('+wrongIds.length+')</button>':'<span class="mark ok">Kõik õiged!</span>')+'<button class="btn" id="tAgain" type="button">Uus test</button></div>';
+  var rt=$('#tRetry');if(rt)rt.addEventListener('click',function(){T.force=wrongIds.slice();testNew();window.scrollTo({top:0,behavior:reduce?'auto':'smooth'})});
+  $('#tAgain').addEventListener('click',function(){testNew();window.scrollTo({top:0,behavior:reduce?'auto':'smooth'})});
+  T.checked=true;res.scrollIntoView({block:'nearest',behavior:reduce?'auto':'smooth'});
+}
+function clearTestFill(id){setCls(id,'ok',false);setCls(id,'bad',false)}
+
+/* ---------- start ---------- */
+renderBar();applyPlain();
+setVB(FULL);
+learnInit();
+})();
+</script>
+<script>if('serviceWorker' in navigator&&location.protocol.indexOf('http')===0){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}</script>
+</body>
+</html>
